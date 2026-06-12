@@ -68,65 +68,63 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Failed to create resume record' }, { status: 500 })
   }
 
-  // Parse resume in background
+  // Parse resume synchronously to prevent Next.js from killing the background task
   const admin = createAdminClient()
 
-  ;(async () => {
-    try {
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const parsed = await parseResume(buffer)
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const parsed = await parseResume(buffer)
 
-      // Update resume with extracted text
-      await admin
-        .from('resumes')
-        .update({ extracted_text: parsed.rawText, parse_status: 'completed' })
-        .eq('id', resume.id)
+    // Update resume with extracted text
+    await admin
+      .from('resumes')
+      .update({ extracted_text: parsed.rawText, parse_status: 'completed' })
+      .eq('id', resume.id)
 
-      // Upsert skills into skills table and link to resume
-      for (const skillName of parsed.extractedSkills) {
-        if (!skillName.trim()) continue
+    // Upsert skills into skills table and link to resume
+    for (const skillName of parsed.extractedSkills) {
+      if (!skillName.trim()) continue
 
-        const { data: skill } = await admin
-          .from('skills')
-          .upsert({ name: skillName.trim() }, { onConflict: 'name' })
-          .select('id')
-          .single()
+      const { data: skill } = await admin
+        .from('skills')
+        .upsert({ name: skillName.trim() }, { onConflict: 'name' })
+        .select('id')
+        .single()
 
-        if (skill) {
-          await admin.from('resume_skills').upsert(
-            {
-              resume_id: resume.id,
-              skill_id: skill.id,
-              confidence: parsed.confidence[skillName] ?? null,
-            },
-            { onConflict: 'resume_id,skill_id' }
-          )
+      if (skill) {
+        await admin.from('resume_skills').upsert(
+          {
+            resume_id: resume.id,
+            skill_id: skill.id,
+            confidence: parsed.confidence[skillName] ?? null,
+          },
+          { onConflict: 'resume_id,skill_id' }
+        )
 
-          // Also add to user_skills if not already present
-          await admin.from('user_skills').upsert(
-            { user_id: user.id, skill_id: skill.id },
-            { onConflict: 'user_id,skill_id' }
-          )
-        }
+        // Also add to user_skills if not already present
+        await admin.from('user_skills').upsert(
+          { user_id: user.id, skill_id: skill.id },
+          { onConflict: 'user_id,skill_id' }
+        )
       }
-    } catch (err) {
-      console.error('[api/resume] Parse error:', err)
-      await admin
-        .from('resumes')
-        .update({ parse_status: 'failed' })
-        .eq('id', resume.id)
     }
-  })()
+  } catch (err) {
+    console.error('[api/resume] Parse error:', err)
+    await admin
+      .from('resumes')
+      .update({ parse_status: 'failed' })
+      .eq('id', resume.id)
+  }
 
   return Response.json(
     {
       data: {
         resumeId: resume.id,
-        status: 'processing',
-        message: 'Resume uploaded. Skills will be extracted shortly.',
+        status: 'completed',
+        message: 'Resume uploaded and skills extracted successfully.',
       },
     },
-    { status: 202 }
+    { status: 200 }
   )
 }
 

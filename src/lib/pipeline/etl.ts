@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import type { ScrapedOpportunity } from '@/types'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractSkillsFromText } from '@/lib/ai/skill-extractor'
+import { generateEmbedding } from '@/lib/ai/embeddings'
 
 // ============================================================
 // ETL Pipeline – Extract, Transform, Load
@@ -171,7 +172,16 @@ export async function loadOpportunities(
         .eq('name', item.opportunityTypeName)
         .single()
 
-      // 3. Insert opportunity (skip if url_hash conflict)
+      // 3. Generate Semantic Search Embedding
+      let embedding = null
+      try {
+        const textToEmbed = `${item.title} at ${item.organizationName}. ${item.description ?? ''} Skills: ${item.skills.join(', ')}`
+        embedding = await generateEmbedding(textToEmbed)
+      } catch (err) {
+        console.warn('[etl] Failed to generate embedding for:', item.title, err)
+      }
+
+      // 4. Insert opportunity (skip if url_hash conflict)
       const { data: opportunity, error: oppError } = await admin
         .from('opportunities')
         .insert({
@@ -187,6 +197,7 @@ export async function loadOpportunities(
           stipend: item.stipend ?? null,
           duration: item.duration ?? null,
           source: item.source,
+          embedding,
         })
         .select('id')
         .single()
@@ -200,7 +211,7 @@ export async function loadOpportunities(
         continue
       }
 
-      // 4. Upsert skills and link to opportunity
+      // 5. Upsert skills and link to opportunity
       if (opportunity && item.skills.length > 0) {
         for (const skillName of item.skills) {
           if (!skillName.trim()) continue

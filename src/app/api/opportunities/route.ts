@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { generateEmbedding } from '@/lib/ai/embeddings'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -32,17 +33,48 @@ export async function GET(request: NextRequest) {
       opportunity_skills(skill_id, skills(id, name, category))
     `, { count: 'exact' })
     .eq('is_archived', false)
-    .range(offset, offset + pageSize - 1)
-    .order('created_at', { ascending: false })
+    
+  let semanticMatches: any[] = []
 
-  if (jobId && q) {
-    const safeQ = q.replace(/,/g, ' ')
-    queryBuilder = queryBuilder.or(`scrape_job_id.eq.${jobId},title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
+  if (q) {
+    try {
+      const embedding = await generateEmbedding(q)
+      const { data: matches, error: rpcError } = await admin.rpc('match_opportunities', {
+        query_embedding: `[${embedding.join(',')}]`,
+        match_threshold: 0.3,
+        match_count: 50,
+        filter_job_id: jobId || null
+      })
+      
+      if (rpcError) throw rpcError
+      
+      semanticMatches = matches || []
+      const matchIds = semanticMatches.map((m) => m.id)
+      
+      if (matchIds.length === 0) {
+        return Response.json({ data: [], count: 0, page, pageSize, totalPages: 0 })
+      }
+      
+      queryBuilder = queryBuilder.in('id', matchIds)
+    } catch (err) {
+      console.warn('[api/opportunities] Semantic search failed, falling back to keyword search:', err)
+      // Fallback to keyword if embedding fails (e.g., API key missing)
+      const safeQ = q.replace(/,/g, ' ')
+      if (jobId) {
+        queryBuilder = queryBuilder.or(`scrape_job_id.eq.${jobId},title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
+      } else {
+        queryBuilder = queryBuilder.or(`title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
+      }
+    }
   } else if (jobId) {
     queryBuilder = queryBuilder.eq('scrape_job_id', jobId)
-  } else if (q) {
-    const safeQ = q.replace(/,/g, ' ')
-    queryBuilder = queryBuilder.or(`title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
+  }
+
+  // Only apply pagination at DB level if we aren't sorting in memory for semantic search
+  if (!q || semanticMatches.length === 0) {
+    queryBuilder = queryBuilder
+      .range(offset, offset + pageSize - 1)
+      .order('created_at', { ascending: false })
   }
 
   if (type) {
@@ -60,11 +92,25 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: 'Failed to fetch opportunities' }, { status: 500 })
   }
 
+  let results = data ?? []
+  let totalCount = count ?? 0
+
+  // If we used semantic search, sort the results by similarity score and paginate in memory
+  if (q && semanticMatches.length > 0) {
+    const similarityMap = new Map(semanticMatches.map(m => [m.id, m.similarity]))
+    results = results.sort((a, b) => (similarityMap.get(b.id) || 0) - (similarityMap.get(a.id) || 0))
+    // Add match_score to the response object (0-100 scale)
+    results = results.map(r => ({ ...r, match_score: Math.round((similarityMap.get(r.id) || 0) * 100) }))
+    
+    totalCount = results.length
+    results = results.slice(offset, offset + pageSize)
+  }
+
   return Response.json({
-    data: data ?? [],
-    count: count ?? 0,
+    data: results,
+    count: totalCount,
     page,
     pageSize,
-    totalPages: Math.ceil((count ?? 0) / pageSize),
+    totalPages: Math.ceil(totalCount / pageSize),
   })
 }
