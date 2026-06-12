@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl
   const jobId = searchParams.get('jobId')
+  const q = searchParams.get('q')
   const page = parseInt(searchParams.get('page') ?? '1')
   const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '20'), 50)
   const type = searchParams.get('type')
@@ -18,7 +20,10 @@ export async function GET(request: NextRequest) {
 
   const offset = (page - 1) * pageSize
 
-  let query = supabase
+  // Use admin client so we search the global pool of all scraped opportunities
+  const admin = createAdminClient()
+
+  let queryBuilder = admin
     .from('opportunities')
     .select(`
       *,
@@ -30,35 +35,25 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + pageSize - 1)
     .order('created_at', { ascending: false })
 
-  // Filter by scrape job (user's own data enforced by RLS)
-  if (jobId) {
-    query = query.eq('scrape_job_id', jobId)
-  } else {
-    // Show opportunities from user's recent scrape jobs (last 30 days)
-    const { data: jobs } = await supabase
-      .from('scrape_jobs')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    if (!jobs?.length) {
-      return Response.json({ data: [], count: 0, page, pageSize, totalPages: 0 })
-    }
-
-    query = query.in('scrape_job_id', jobs.map((j) => j.id))
+  if (jobId && q) {
+    const safeQ = q.replace(/,/g, ' ')
+    queryBuilder = queryBuilder.or(`scrape_job_id.eq.${jobId},title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
+  } else if (jobId) {
+    queryBuilder = queryBuilder.eq('scrape_job_id', jobId)
+  } else if (q) {
+    const safeQ = q.replace(/,/g, ' ')
+    queryBuilder = queryBuilder.or(`title.ilike.%${safeQ}%,description.ilike.%${safeQ}%`)
   }
 
   if (type) {
-    query = query.eq('opportunity_types.name', type)
+    queryBuilder = queryBuilder.eq('opportunity_types.name', type)
   }
 
   if (location) {
-    query = query.ilike('location', `%${location}%`)
+    queryBuilder = queryBuilder.ilike('location', `%${location}%`)
   }
 
-  const { data, error, count } = await query
+  const { data, error, count } = await queryBuilder
 
   if (error) {
     console.error('[api/opportunities] Query error:', error)

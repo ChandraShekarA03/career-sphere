@@ -45,8 +45,10 @@ function SearchContent() {
   const [totalPages, setTotalPages] = useState(1)
 
   // Load opportunities for a job
-  const loadOpportunities = useCallback(async (jobId: string, p = 1) => {
-    const params = new URLSearchParams({ jobId, page: String(p), pageSize: '20' })
+  const loadOpportunities = useCallback(async (jobId: string, searchQuery: string, p = 1) => {
+    const params = new URLSearchParams({ page: String(p), pageSize: '20' })
+    if (jobId) params.set('jobId', jobId)
+    if (searchQuery) params.set('q', searchQuery)
     if (filterType) params.set('type', filterType)
     if (filterLocation) params.set('location', filterLocation)
 
@@ -73,7 +75,7 @@ function SearchContent() {
         setPolling(false)
         setLoading(false)
         if (status === 'completed') {
-          await loadOpportunities(currentJobId, 1)
+          await loadOpportunities(currentJobId, query, 1)
         }
         clearInterval(interval)
       }
@@ -82,13 +84,12 @@ function SearchContent() {
     return () => clearInterval(interval)
   }, [currentJobId, polling, loadOpportunities])
 
-  // Load initial job if jobId in URL
   useEffect(() => {
     if (initialJobId) {
       setCurrentJobId(initialJobId)
-      loadOpportunities(initialJobId, 1)
+      loadOpportunities(initialJobId, query, 1)
     }
-  }, [initialJobId, loadOpportunities])
+  }, [initialJobId, loadOpportunities, query])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -367,7 +368,7 @@ function SearchContent() {
                 onClick={() => {
                   const next = page + 1
                   setPage(next)
-                  if (currentJobId) loadOpportunities(currentJobId, next)
+                  if (currentJobId) loadOpportunities(currentJobId, query, next)
                 }}
               >
                 Load More

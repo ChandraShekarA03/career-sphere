@@ -29,6 +29,7 @@ export default function ResumePage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [polling, setPolling] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(25)
 
   const fetchResumes = useCallback(async () => {
     const res = await fetch('/api/resume')
@@ -49,6 +50,15 @@ export default function ResumePage() {
     return () => clearInterval(interval)
   }, [resumes, fetchResumes])
 
+  // Countdown timer for processing UI
+  useEffect(() => {
+    if (!polling) return
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [polling])
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (!file) return
@@ -66,6 +76,7 @@ export default function ResumePage() {
     if (!res.ok) {
       setError(data.error ?? 'Upload failed')
     } else {
+      setTimeLeft(25)
       setSuccess('Resume uploaded! Extracting skills with AI…')
       await fetchResumes()
     }
@@ -233,7 +244,7 @@ export default function ResumePage() {
               </div>
               <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.5rem' }}>AI Processing…</h3>
               <p style={{ color: 'var(--color-text-2)', fontSize: '0.9375rem' }}>
-                Extracting skills from your resume. This takes 15–30 seconds.
+                Extracting skills from your resume. Estimated time remaining: <strong style={{ color: 'var(--color-primary)' }}>{timeLeft > 0 ? `${timeLeft}s` : 'almost done...'}</strong>
               </p>
             </div>
           ) : (
