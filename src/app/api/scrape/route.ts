@@ -60,10 +60,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Failed to create scrape job' }, { status: 500 })
   }
 
-  // Run scraping in background (fire and forget)
-  // In production, use a queue (e.g. Inngest, Trigger.dev)
-  runScrapeJob(scrapeJob.id, query, filters as Record<string, string>).catch((err) => {
-    console.error('[api/scrape] Background scrape error:', err)
+  // Run scraping synchronously since timeouts are now capped at 4 seconds.
+  // This prevents Next.js from aggressively terminating unawaited background promises.
+  await runScrapeJob(scrapeJob.id, query, filters as Record<string, string>).catch((err) => {
+    console.error('[api/scrape] Scrape execution error:', err)
   })
 
   return Response.json({
