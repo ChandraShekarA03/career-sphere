@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   if (q) {
     try {
       const embedding = await generateEmbedding(q)
-      const { data: matches, error: rpcError } = await admin.rpc('match_opportunities', {
+      const { data: matches, error: rpcError } = await (admin.rpc as any)('match_opportunities', {
         query_embedding: `[${embedding.join(',')}]`,
         match_threshold: 0.3,
         match_count: 50,

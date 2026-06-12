@@ -182,8 +182,7 @@ export async function loadOpportunities(
       }
 
       // 4. Insert opportunity (skip if url_hash conflict)
-      const { data: opportunity, error: oppError } = await admin
-        .from('opportunities')
+      const { data: opportunity, error: oppError } = await (admin.from('opportunities') as any)
         .insert({
           scrape_job_id: scrapeJobId,
           organization_id: org?.id ?? null,
