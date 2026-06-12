@@ -2,6 +2,8 @@ import type { Scraper, ScrapedOpportunity } from './types'
 import { InternshalasScraper } from './sources/internshala'
 import { UnstopScraper } from './sources/unstop'
 import { DevfolioScraper } from './sources/devfolio'
+import { ArbeitnowScraper } from './sources/arbeitnow'
+import { RemoteOKScraper } from './sources/remoteok'
 import { transformOpportunities, loadOpportunities } from '@/lib/pipeline/etl'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -13,6 +15,8 @@ const SCRAPERS: Scraper[] = [
   new InternshalasScraper(),
   new UnstopScraper(),
   new DevfolioScraper(),
+  new ArbeitnowScraper(),
+  new RemoteOKScraper(),
 ]
 
 export interface ScrapeManagerResult {
