@@ -21,7 +21,7 @@ export class DevfolioScraper implements Scraper {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
           Accept: 'text/html,application/xhtml+xml',
         },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(4_000),
       })
 
       if (!response.ok) {

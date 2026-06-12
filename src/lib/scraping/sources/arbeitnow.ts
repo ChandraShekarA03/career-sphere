@@ -18,7 +18,7 @@ export class ArbeitnowScraper implements Scraper {
         headers: {
           'User-Agent': 'CareerSphere-App/1.0',
         },
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(4_000),
       })
 
       if (!response.ok) return []

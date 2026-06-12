@@ -43,6 +43,7 @@ function SearchContent() {
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [timeLeft, setTimeLeft] = useState(5)
 
   // Load opportunities for a job
   const loadOpportunities = useCallback(async (jobId: string, searchQuery: string, p = 1) => {
@@ -84,6 +85,15 @@ function SearchContent() {
     return () => clearInterval(interval)
   }, [currentJobId, polling, loadOpportunities])
 
+  // Countdown timer for search polling
+  useEffect(() => {
+    if (!polling) return
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [polling])
+
   useEffect(() => {
     if (initialJobId) {
       setCurrentJobId(initialJobId)
@@ -116,6 +126,7 @@ function SearchContent() {
 
     setCurrentJobId(data.data.jobId)
     setJobStatus('pending')
+    setTimeLeft(5)
     setPolling(true)
   }
 
@@ -238,7 +249,7 @@ function SearchContent() {
           <div>
             <strong>Scraping in progress…</strong>
             <p style={{ fontSize: '0.875rem', marginTop: '0.25rem', opacity: 0.8 }}>
-              Searching Internshala, Unstop, Devfolio and more. This takes 10–30 seconds.
+              Searching across 5+ sources. Estimated time remaining: <strong style={{ color: 'var(--color-primary)' }}>{timeLeft > 0 ? `${timeLeft}s` : 'almost done...'}</strong>
             </p>
           </div>
         </div>
