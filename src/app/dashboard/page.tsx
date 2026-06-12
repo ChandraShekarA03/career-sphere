@@ -197,6 +197,7 @@ export default async function DashboardPage() {
                 <Link
                   key={action.label}
                   href={action.href}
+                  className="card-interactive"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.875rem',
                     padding: '0.75rem',
@@ -204,14 +205,6 @@ export default async function DashboardPage() {
                     border: '1px solid var(--color-border)',
                     transition: 'all var(--transition-fast)',
                     textDecoration: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-surface-2)'
-                    e.currentTarget.style.borderColor = 'var(--color-border-2)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.borderColor = 'var(--color-border)'
                   }}
                 >
                   <div style={{ width: 36, height: 36, borderRadius: 8, background: `${action.color}15`, border: `1px solid ${action.color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
